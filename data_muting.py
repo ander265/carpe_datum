@@ -1,7 +1,20 @@
 import numpy as np
 import pandas as pd
 
-#df = pd.read_csv('train_data.csv')
+def get_data(filename, filter=True):
+    '''
+    Read input data and filter by top 50, if desired:
+    '''
+    df = pd.read_csv(filename) #in this case, train_data.csv
+    if filter==True:
+        unit_times=df.groupby(['Unit Number'])['Time'].count()
+        top_50 = unit_times.sort_values(ascending=False)[:50]
+        df = df[df['Unit Number'].isin(top_50.index)]
+        df.to_csv('top50unmuted.csv')
+    
+    return df
+
+df = get_data('train_data.csv')
 
 def mute_data(df):
     data_dict = {}
@@ -22,7 +35,7 @@ def mute_data(df):
         if partition.Time.max() >250:
             mute_start3 = np.random.randint(np.random.randint(200,250),500)
             mute_range3 = np.random.randint(25,50)
-            mute_end3 = mute_start3 + mute_range3
+            #mute_end3 = mute_start3 + mute_range3
             partition.iloc[mute_start3:mute_start3+mute_range3,null_col_ix] = np.nan
         data_dict[un] = partition
         
@@ -30,6 +43,10 @@ def mute_data(df):
     return muted_df
 
 def mute_dataTOP50(df):
+    '''
+    Run this function instead of mute_data() if the input data has been filtered for the top 50 longest units.
+    The distribution of the muted data will be altered to match the longer durations.
+    '''
     data_dict = {}
     subjects = df['Unit Number'].unique()
     for un in subjects:
@@ -52,6 +69,8 @@ def mute_dataTOP50(df):
     return muted_df
 
 def get_metrix(muted_df):
+    '''input: the muted df from the previous function(s)
+    output: percentage of nulls per Unit, per Sensor signal (SM1, SM2... SMN)'''
     sm_percents = {}
     for x in muted_df.columns[muted_df.columns.str.contains('SM')]:
         norm_val_counts = muted_df.groupby(['Unit Number'])[x].value_counts(normalize=True,
@@ -68,6 +87,10 @@ def get_metrix(muted_df):
         return pd.DataFrame(sm_percents)
     
 def time_series(muted_df):
+    '''
+    input: DataFrame after muting manipulation
+    output: plot of subject muting percentages over x-axis of Time Interval
+    '''
     sm_percents_over_time = {}
     for x in muted_df.columns[muted_df.columns.str.contains('SM')]:
         norm_val_counts = muted_df.groupby(['Time'])[x].value_counts(normalize=True,
